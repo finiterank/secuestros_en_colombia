@@ -11,6 +11,7 @@ library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(scales)
+library(gridExtra)
 sdf <- read.csv('secuestros.csv')
 ```
 
