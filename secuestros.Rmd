@@ -1,0 +1,160 @@
+---
+title: "Secuestros"
+author: "Javier Moreno"
+date: "September 20, 2015"
+output: html_document
+---
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(scales)
+sdf <- read.csv('secuestros.csv')
+```
+
+```{r}
+summary(sdf)
+sdf <- sdf %>% mutate(fecha = as.Date(paste(Día, Mes, Año, sep='-'), format='%d-%m-%Y'))
+```
+
+```{r, echo=F}
+df <- sdf %>% filter(Modalidad == 'Sobre una persona específica') %>% group_by(Año) %>% summarise(secuestros = n())
+ggplot(df,
+       aes(Año, secuestros)) + geom_bar(stat='identity',fill='grey') +
+  theme_bw() +
+  theme(text = element_text(size = 15)) +
+  annotate('text', x=1980, y=1600, label=sum(df$secuestros), size=30, color='grey70') +
+  annotate('text', x=1980, y=1350, size=6, label='secuestros sobre persona específica\nentre 1970 y 2010', color='grey50')
+```
+
+```{r, echo=F}
+levels(sdf$Autor.Presunto)[1] <- 'Desconocido'
+levels(sdf$Autor.Presunto)[6] <- 'Agentes o Exagentes del Estado'
+
+df <- sdf %>% filter(Modalidad == 'Sobre una persona específica') %>% group_by(Autor.Presunto) %>% summarise(secuestros = n()) %>%
+  arrange(secuestros)
+
+df$Autor.Presunto <- factor(df$Autor.Presunto, levels=as.character(df$Autor.Presunto))
+df$percentage <- 100 * df$secuestros / sum(df$secuestros)
+ggplot(df,
+       aes(Autor.Presunto, percentage)) + geom_bar(stat='identity', fill='grey') +
+  theme_bw() + coord_flip() + 
+  theme(text = element_text(size = 15)) + xlab('Presunto autor') + ylab('Porcentaje del total del secuestros\nsobre persona específica (1970-2010)')
+```
+
+```{r, echo=F}
+trim <- function (x) gsub("^\\s+|\\s+$", "", x)
+
+
+levels(sdf$Departamento)
+levels(sdf$Departamento) <- tolower(trim(levels(sdf$Departamento)))
+levels(sdf$Departamento)[1] <- 'desconocido'
+sdf$Departamento <- factor(sdf$Departamento, levels=sort(levels(sdf$Departamento)))
+
+df <- sdf %>% filter(Modalidad == 'Sobre una persona específica', Departamento != 'desconocido') %>%
+  group_by(Año, Departamento) %>% summarise(secuestros=n())
+
+
+ggplot(df %>% filter(Departamento != 'antioquia'), aes(Año, secuestros)) + 
+  geom_line(color='grey70') + 
+  xlab('Año') + ylab('Número secuestros') +
+  theme_bw() + facet_wrap(~Departamento, ncol=8) +
+  theme(text = element_text(size = 15), strip.text = element_text(size = 15),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r, echo=F}
+p <- ggplot(df %>% filter(Departamento == 'antioquia'), aes(Año, secuestros)) +
+  geom_line(color='grey40') + scale_x_continuous(limits = c(1970, 2010)) +
+  theme_bw() + ylab('Secuestros en Antioquia') +
+  theme(axis.text.x=element_blank(),
+      axis.ticks.x=element_blank(),
+      axis.title.x=element_blank())
+
+q <- p + geom_line(data=df %>% filter(Departamento != 'antioquia'), aes(Año, secuestros, group=Departamento), color='grey70', alpha='.3') 
+
+numero.por.año <- sdf %>% filter(Modalidad == 'Sobre una persona específica') %>%
+  group_by(Año) %>% summarise(secuestros.anuales = n())
+
+s <- ggplot(numero.por.año, aes(Año, secuestros.anuales)) + 
+  geom_line(color='grey70', linetype='dashed') + theme_bw() + ylab('Secuestros en Antioquia') 
+
+s <- s + geom_line(data = df %>% filter(Departamento == 'antioquia'), 
+                   aes(Año, secuestros), color='grey40') +
+        theme(axis.text.x=element_blank(),
+              axis.ticks.x=element_blank(),
+              axis.title.x=element_blank())  + 
+  annotate('Text', x=1996, y=1450, label='Total nacional', angle=70, color='grey70')
+
+
+
+df <- dplyr::full_join(df, numero.por.año)
+
+df$porcentaje <- df$secuestros / df$secuestros.anuales
+
+r <- ggplot(df %>% filter(Departamento == 'antioquia'), aes(Año, porcentaje)) + 
+  geom_line() + theme_bw() + scale_y_continuous(labels=percent_format()) +
+  scale_x_continuous(limits = c(1970, 2010)) +
+  xlab('Año') + ylab('Porcentaje de secuestros en Antioquia sobre el total nacional')
+
+grid.arrange(q, s, r, ncol=1)
+```
+
+```{r, echo=F}
+levels(sdf$Autor.Presunto)
+levels(sdf$Autor.Presunto) <- tolower(trim(levels(sdf$Autor.Presunto)))
+
+df <- sdf %>% filter(Modalidad == 'Sobre una persona específica') %>%
+  group_by(Año, Autor.Presunto) %>% summarise(secuestros=n())
+
+
+s <- ggplot(numero.por.año, aes(Año, secuestros.anuales)) + 
+  geom_line(color='grey70', linetype='dashed') + theme_bw() + ylab('Secuestros atribuídos a FARC') 
+
+s <- s + geom_line(data = df %>% filter(Autor.Presunto == 'guerrilla-farc'), 
+                   aes(Año, secuestros), color='grey40') +
+        theme(axis.text.x=element_blank(),
+              axis.ticks.x=element_blank(),
+              axis.title.x=element_blank())  + 
+  annotate('Text', x=1996, y=1450, label='Total nacional', angle=75, color='grey70')
+
+df <- dplyr::full_join(df, numero.por.año)
+
+df$porcentaje <- df$secuestros / df$secuestros.anuales
+
+r <- ggplot(df %>% filter(Autor.Presunto == 'guerrilla-farc'), aes(Año, porcentaje)) + 
+  geom_line() + theme_bw() + scale_y_continuous(labels=percent_format()) +
+  scale_x_continuous(limits = c(1970, 2010)) +
+  xlab('Año') + ylab('Porcentaje de secuestros de FARC sobre el total nacional')
+
+grid.arrange(s, r, ncol=1)
+```
+
+```{r}
+df <- sdf %>% filter(Modalidad == 'Sobre una persona específica', 
+                     Departamento != 'desconocido') %>%
+  group_by(Año, Departamento, Autor.Presunto) %>% summarise(secuestros=n())
+
+ggplot(df %>% filter(Autor.Presunto == 'guerrilla-farc'), aes(Año, secuestros)) + 
+  geom_line(color='grey70') + 
+  xlab('Año') + ylab('Número de secuestros de las FARC') +
+  theme_bw() + facet_wrap(~Departamento, ncol=8) +
+  theme(text = element_text(size = 15), strip.text = element_text(size = 15),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+```{r}
+df <- sdf %>% filter(Modalidad == 'Retén o Pesca Milagrosa') %>% group_by(Año) %>%
+  summarise(secuestros = n())
+
+ggplot(df,
+       aes(Año, secuestros)) + geom_line(color='grey40') +
+  theme_bw() + ylab('Número de secuestros modalidad "Pesca milagrosa"') +
+  theme(text = element_text(size = 15)) +
+  annotate('text', x=1985, y=600, label=sum(df$secuestros), size=30, color='grey70') +
+  annotate('text', x=1985, y=500, size=6, label='Secuestros masivos modalidad "pesca milagrosa"\nentre 1970 y 2010', color='grey50')
+```
